@@ -1,7 +1,7 @@
 # webimage
 Simple program for searching for http/s pages in a range of IP addresses. if it finds one it can grab an image of the rendered page using wkhtmltoimage and the html of the home
 
-#usage
+# usage
 ```
 usage: webimage.py [-h] [--ports PORTS] [--user_agent USERAGENT]
                    [--proxy PROXY] [--output_location FOLDERNAME]
