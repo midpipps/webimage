@@ -278,9 +278,7 @@ def zipfiles(parsedargs, outputlocation):
     zip up all the files in the output and remove the old folder
     '''
     with zipfile.ZipFile(parsedargs.outputloc + parsedargs.outputzip + '.zip', 'w', zipfile.ZIP_DEFLATED) as ziph:
-        print(os.listdir(outputlocation))
         for fil in [f for f in os.listdir(outputlocation) if os.path.isfile(os.path.join(outputlocation, f))]:
-            print(outputlocation + fil)
             ziph.write(os.path.join(outputlocation, fil), fil)
         shutil.rmtree(outputlocation)
 
