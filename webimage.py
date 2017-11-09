@@ -6,6 +6,9 @@ import datetime
 import argparse
 import subprocess
 import json
+import os
+import zipfile
+import shutil
 import html
 import urllib3
 import requests
@@ -20,13 +23,12 @@ class Output(object):
     '''
     class handles the output from the scanner
     '''
-    def __init__(self, command, stdout=None, xmlout=None, jsonout=None, output_loc='', search=None):
+    def __init__(self, command, stdout=None, xmlout=None, jsonout=None, search=None):
         self._command = command
         self._stdout = stdout
         self._xmlout = xmlout
         self._jsonout = jsonout
         self._firstout = True
-        self._output_loc = output_loc
         self._search = search
         self._open()
 
@@ -41,11 +43,11 @@ class Output(object):
         open all the file handlers for writing output
         '''
         if self._stdout:
-            self._stdout = open(self._output_loc + self._stdout, 'w')
+            self._stdout = open(self._stdout, 'w')
         if self._xmlout:
-            self._xmlout = open(self._output_loc + self._xmlout, 'w')
+            self._xmlout = open(self._xmlout, 'w')
         if self._jsonout:
-            self._jsonout = open(self._output_loc + self._jsonout, 'w')
+            self._jsonout = open(self._jsonout, 'w')
         self._startoutput()
 
     def _searchresponse(self, responsetext):
@@ -220,7 +222,7 @@ def portparse(values):
     msg = '%r is not a list of ports must only have , - and numeric values' % values
     raise argparse.ArgumentTypeError(msg)
 
-def getscreenshot(parsedargs, url):
+def getscreenshot(parsedargs, url, outputlocation):
     '''
     use the parsed args to get a screenshot of the web page
     '''
@@ -236,8 +238,8 @@ def getscreenshot(parsedargs, url):
         wkhtmlrun.append("--quality")
         wkhtmlrun.append(str(parsedargs.wkhtmlquality))
     wkhtmlrun.append(url)
-    finalpath = (parsedargs.outputloc +
-                 url.replace("http://", "").replace("https://", "").replace(".", "_").replace(":", "_") +
+    finalpath = (outputlocation +
+                 url.replace("http://", "").replace("https://", "").replace(".", "_").replace(":", "-") +
                  parsedargs.wkhtmlext)
     wkhtmlrun.append(finalpath)
     subprocess.call(wkhtmlrun)
@@ -271,20 +273,41 @@ def callweb(address, port, request_session):
         resp_dat = None
     return (resp_dat, connected_web)
 
+def zipfiles(parsedargs, outputlocation):
+    '''
+    zip up all the files in the output and remove the old folder
+    '''
+    with zipfile.ZipFile(parsedargs.outputloc + parsedargs.outputzip + '.zip', 'w', zipfile.ZIP_DEFLATED) as ziph:
+        print(os.listdir(outputlocation))
+        for fil in [f for f in os.listdir(outputlocation) if os.path.isfile(os.path.join(outputlocation, f))]:
+            print(outputlocation + fil)
+            ziph.write(os.path.join(outputlocation, fil), fil)
+        shutil.rmtree(outputlocation)
+
 def scan(parsedargs):
     '''
     Scan the ip address ranges and ports for the web servers
     '''
     command = ''
+    outputlocation = ''
     for arg in sys.argv:
         command += arg + ' '
+    if parsedargs.outputloc:
+        outputlocation = parsedargs.outputloc
+    if parsedargs.outputzip:
+        parsedargs.outputzip = parsedargs.outputzip.replace('.', '').replace('/', '').replace(':', '')
+        outputlocation = outputlocation + parsedargs.outputzip + "/"
     if parsedargs.allout:
-        parsedargs.fileout = parsedargs.allout + '.out'
-        parsedargs.xmlout = parsedargs.allout + '.xml'
-        parsedargs.jsonout = parsedargs.allout + '.json'
+        parsedargs.fileout = outputlocation + parsedargs.allout + '.out'
+        parsedargs.xmlout = outputlocation + parsedargs.allout + '.xml'
+        parsedargs.jsonout = outputlocation + parsedargs.allout + '.json'
+    if outputlocation:
+        if not os.path.exists(outputlocation):
+            os.makedirs(outputlocation)
+
     with Output(command, parsedargs.fileout,
                 parsedargs.xmlout, parsedargs.jsonout,
-                parsedargs.outputloc, parsedargs.search) as output:
+                parsedargs.search) as output:
         headers = {'User-Agent':parsedargs.useragent}
         with requests.Session() as sess:
             sess.headers.update(headers)
@@ -302,9 +325,11 @@ def scan(parsedargs):
                     ipaddresses[1][port] = response[0]
                     if parsedargs.screenshot and response[1]:
                         #TODO need to send the proxy data to the program also.
-                        getscreenshot(parsedargs, response[1])
-
+                        getscreenshot(parsedargs, response[1], outputlocation)
                 output.addresponsedata(ipaddresses)
+    #time to zip everything up if we are zipping
+    if parsedargs.outputzip:
+        zipfiles(parsedargs, outputlocation)
 
 def main():
     '''
@@ -338,6 +363,11 @@ def main():
                                   help='Proxy connection data')
 
     output_group = parser.add_argument_group('output', 'output parameters')
+    output_group.add_argument('--output_zip', '-oZ',
+                              dest='outputzip',
+                              metavar='ZIPNAME',
+                              default=None,
+                              help='zips all the output including images will create a temporary folder to store everything until it can zip')
     output_group.add_argument('--output_location', '-oL',
                               dest='outputloc',
                               metavar='FOLDERNAME',
