@@ -277,7 +277,7 @@ def zipfiles(parsedargs, outputlocation):
     '''
     zip up all the files in the output and remove the old folder
     '''
-    with zipfile.ZipFile(parsedargs.outputloc + parsedargs.outputzip + '.zip', 'w', zipfile.ZIP_DEFLATED) as ziph:
+    with zipfile.ZipFile(parsedargs.outputloc + parsedargs.outputzip, 'w', zipfile.ZIP_DEFLATED) as ziph:
         for fil in [f for f in os.listdir(outputlocation) if os.path.isfile(os.path.join(outputlocation, f))]:
             ziph.write(os.path.join(outputlocation, fil), fil)
         shutil.rmtree(outputlocation)
@@ -293,16 +293,30 @@ def scan(parsedargs):
     if parsedargs.outputloc:
         outputlocation = parsedargs.outputloc
     if parsedargs.outputzip:
-        parsedargs.outputzip = parsedargs.outputzip.replace('.', '').replace('/', '').replace(':', '')
-        outputlocation = outputlocation + parsedargs.outputzip + "/"
+        tempoutput = parsedargs.outputzip.replace('.', '').replace('/', '').replace(':', '')
+        if '.' not in parsedargs.outputzip:
+            parsedargs.outputzip = parsedargs.outputzip + ".zip"
+        outputlocation = outputlocation + tempoutput + "/"
     if parsedargs.allout:
         parsedargs.fileout = outputlocation + parsedargs.allout + '.out'
         parsedargs.xmlout = outputlocation + parsedargs.allout + '.xml'
         parsedargs.jsonout = outputlocation + parsedargs.allout + '.json'
+    else:
+        if parsedargs.jsonout:
+            if '.json' not in parsedargs.jsonout:
+                parsedargs.jsonout = parsedargs.jsonout + '.json'
+            parsedargs.jsonout = outputlocation + parsedargs.jsonout
+        if parsedargs.xmlout:
+            if '.xml' not in parsedargs.xmlout:
+                parsedargs.xmlout = parsedargs.xmlout + '.xml'
+            parsedargs.xmlout = outputlocation + parsedargs.xmlout
+        if parsedargs.fileout:
+            if '.out' not in parsedargs.fileout:
+                parsedargs.fileout = parsedargs.fileout + '.out'
+            parsedargs.fileout = outputlocation + parsedargs.fileout
     if outputlocation:
         if not os.path.exists(outputlocation):
             os.makedirs(outputlocation)
-
     with Output(command, parsedargs.fileout,
                 parsedargs.xmlout, parsedargs.jsonout,
                 parsedargs.search) as output:
