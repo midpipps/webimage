@@ -254,12 +254,12 @@ def callweb(address, port, request_session):
         #TODO find a better way of checking between http and https
         #try the request http
         connected_web = "http://{0}:{1}".format(address, port)
-        with request_session.get(connected_web) as response:
+        with request_session.get(connected_web, timeout=(0.05,20)) as response:
             resp_dat = response
         if not resp_dat or resp_dat.status_code != 200:
             #try the request https
             connected_web = "https://{0}:{1}".format(address, port)
-            with request_session.get(connected_web) as response:
+            with request_session.get(connected_web, timeout=(0.05,20)) as response:
                 if response.status_code == 200:
                     resp_dat = response
     except ConnectionRefusedError:
@@ -335,8 +335,10 @@ def scan(parsedargs):
                 }
                 sess.proxies.update(proxies)
             for ipadd in parsedargs.ipaddresses:
+                print("working ip:" + str(ipadd))
                 ipaddresses = [str(ipadd), dict()]
                 for port in parsedargs.portlist:
+                    print("\tworking port:" + str(port))
                     response = callweb(ipadd, port, sess)
                     ipaddresses[1][port] = response[0]
                     if parsedargs.screenshot and response[1]:
