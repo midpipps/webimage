@@ -226,6 +226,7 @@ def getscreenshot(parsedargs, url, outputlocation):
     '''
     use the parsed args to get a screenshot of the web page
     '''
+    print('getting screenshot for:' + url)
     wkhtmlrun = list()
     wkhtmlrun.append(parsedargs.wkhtmlloc)
     if parsedargs.wkhtmlheight and parsedargs.wkhtmlheight > 0:
@@ -254,12 +255,12 @@ def callweb(address, port, request_session):
         #TODO find a better way of checking between http and https
         #try the request http
         connected_web = "http://{0}:{1}".format(address, port)
-        with request_session.get(connected_web, timeout=(0.05,20)) as response:
+        with request_session.get(connected_web, timeout=(3.05, 20)) as response:
             resp_dat = response
         if not resp_dat or resp_dat.status_code != 200:
             #try the request https
             connected_web = "https://{0}:{1}".format(address, port)
-            with request_session.get(connected_web, timeout=(0.05,20)) as response:
+            with request_session.get(connected_web, timeout=(3.05, 20)) as response:
                 if response.status_code == 200:
                     resp_dat = response
     except ConnectionRefusedError:
