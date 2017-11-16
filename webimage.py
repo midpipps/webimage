@@ -272,6 +272,10 @@ def callweb(address, port, request_session):
         #same thing here
         connected_web = None
         resp_dat = None
+    except requests.ReadTimeout:
+        #same thing here
+        connected_web = None
+        resp_dat = None
     return (resp_dat, connected_web)
 
 def zipfiles(parsedargs, outputlocation):
