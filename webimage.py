@@ -293,9 +293,13 @@ def scan(parsedargs):
     if parsedargs.outputloc:
         outputlocation = parsedargs.outputloc
     if parsedargs.outputzip:
-        tempoutput = parsedargs.outputzip.replace('.', '').replace('/', '').replace(':', '')
         if '.' not in parsedargs.outputzip:
             parsedargs.outputzip = parsedargs.outputzip + ".zip"
+        if '/' in parsedargs.outputzip or '\\' in parsedargs.outputzip:
+            #need to remove folders in the output zip name as this will mess with the zipping
+            parsedargs.outputzip = parsedargs.outputzip.split('/', 1)[-1]
+            parsedargs.outputzip = parsedargs.outputzip.split('\\', 1)[-1]
+        tempoutput = parsedargs.outputzip.replace('.', '').replace(':', '')
         outputlocation = outputlocation + tempoutput + "/"
     if parsedargs.allout:
         parsedargs.fileout = outputlocation + parsedargs.allout + '.out'
