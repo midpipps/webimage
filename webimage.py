@@ -141,7 +141,7 @@ class Output(object):
                         firstport = False
                     else:
                         self._jsonout.write(',')
-                    self._jsonout.write('{{"port":"{0}"'.format(port))
+                    self._jsonout.write('{{"port":{0}'.format(port))
                     self._jsonout.write(',"status_code":"{0}"'.format(resp.status_code))
                     self._jsonout.write(',"text":{0}'.format(json.dumps(resp.text)))
                     if searchresponse:
