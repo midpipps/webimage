@@ -15,8 +15,9 @@ import requests
 from netaddr import IPNetwork, AddrFormatError
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-VERSION = '0.1'
+VERSION = '0.2'
 PROGRAM_NAME = 'Web Image Scanner'
+TIMEOUTS = (3.05, 20) #connect timeout, read timeout
 
 
 class Output(object):
@@ -180,6 +181,46 @@ class Output(object):
         if self._jsonout:
             self._jsonout.close()
 
+def httporhttps(address, port, request_session):
+    '''
+    figure out if the address is https or http
+    '''
+    finalprotocol = None
+    finalurl = None
+    connrefused = False
+    try:
+        connected_web = "https://{0}:{1}".format(address, port)
+        with request_session.head(connected_web, timeout=TIMEOUTS) as response:
+            resp_dat = response
+            if resp_dat and resp_dat.status_code == 200:
+                if 'https' in resp_dat.url:
+                    finalprotocol = "https://"
+                    finalurl = resp_dat.url
+    except ConnectionRefusedError:
+        finalprotocol = None
+        connrefused = True
+    except requests.ConnectionError:
+        finalprotocol = None
+    except requests.ReadTimeout:
+        finalprotocol = None
+
+    if not finalprotocol and not connrefused:
+        #well https did not work need to try again
+        try:
+            connected_web = "http://{0}:{1}".format(address, port)
+            with request_session.head(connected_web, timeout=TIMEOUTS) as response:
+                resp_dat = response
+                if resp_dat and resp_dat.status_code == 200:
+                    finalprotocol = "http://"
+                    finalurl = resp_dat.url
+        except ConnectionRefusedError:
+            finalprotocol = None
+        except requests.ConnectionError:
+            finalprotocol = None
+        except requests.ReadTimeout:
+            finalprotocol = None
+    return finalprotocol, finalurl
+
 def ipparse(values):
     '''
     parse a list of ips/cidr into a list of ip addresses
@@ -222,7 +263,7 @@ def portparse(values):
     msg = '%r is not a list of ports must only have , - and numeric values' % values
     raise argparse.ArgumentTypeError(msg)
 
-def getscreenshot(parsedargs, url, outputlocation):
+def getscreenshot(parsedargs, url, outputlocation, outputfilename):
     '''
     use the parsed args to get a screenshot of the web page
     '''
@@ -240,12 +281,12 @@ def getscreenshot(parsedargs, url, outputlocation):
         wkhtmlrun.append(str(parsedargs.wkhtmlquality))
     wkhtmlrun.append(url)
     finalpath = (outputlocation +
-                 url.replace("http://", "").replace("https://", "").replace(".", "_").replace(":", "-") +
+                 outputfilename +
                  parsedargs.wkhtmlext)
     wkhtmlrun.append(finalpath)
     subprocess.call(wkhtmlrun)
 
-def callweb(address, port, request_session):
+def callweb(protocol, address, port, request_session):
     '''
     call the web address and return the response
     '''
@@ -254,15 +295,9 @@ def callweb(address, port, request_session):
     try:
         #TODO find a better way of checking between http and https
         #try the request http
-        connected_web = "http://{0}:{1}".format(address, port)
-        with request_session.get(connected_web, timeout=(3.05, 20)) as response:
+        connected_web = "{0}{1}:{2}".format(protocol, address, port)
+        with request_session.get(connected_web, timeout=TIMEOUTS) as response:
             resp_dat = response
-        if not resp_dat or resp_dat.status_code != 200:
-            #try the request https
-            connected_web = "https://{0}:{1}".format(address, port)
-            with request_session.get(connected_web, timeout=(3.05, 20)) as response:
-                if response.status_code == 200:
-                    resp_dat = response
     except ConnectionRefusedError:
         #connection was refused therefore probably no web server
         #might want to add some debugging messages here in the future.
@@ -344,11 +379,14 @@ def scan(parsedargs):
                 ipaddresses = [str(ipadd), dict()]
                 for port in parsedargs.portlist:
                     print("\tworking port:" + str(port))
-                    response = callweb(ipadd, port, sess)
+                    protocol, url = httporhttps(ipadd, port, sess)
+                    response = callweb(protocol, ipadd, port, sess)
                     ipaddresses[1][port] = response[0]
                     if parsedargs.screenshot and response[1]:
                         #TODO need to send the proxy data to the program also.
-                        getscreenshot(parsedargs, response[1], outputlocation)
+                        outputfilename = ipadd.replace(".", "_")
+                        outputfilename += '-' + str(port)
+                        getscreenshot(parsedargs, url, outputlocation, outputfilename)
                 output.addresponsedata(ipaddresses)
     #time to zip everything up if we are zipping
     if parsedargs.outputzip:
