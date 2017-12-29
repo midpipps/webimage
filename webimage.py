@@ -117,6 +117,9 @@ class Output(object):
             #loop over the ports and output the information
             #TODO fix encoding to be more appropriate
             if resp:
+                history = ''
+                for hist in resp.history:
+                    history += '[' + str(hist.status_code) + '|' + hist.url + ']'
                 searchresponse = self._searchresponse(resp.text)
                 print("\tPORT:{0}\n".format(port))
                 print("\t\tStatusCode:{0}\n".format(resp.status_code))
@@ -127,12 +130,16 @@ class Output(object):
                     self._stdout.write("\tPort:{0}\n".format(port))
                     self._stdout.write("\t\tStatusCode:{0}\n".format(resp.status_code))
                     self._stdout.write("\t\tText:{0}\n".format(resp.text.encode('UTF-8', 'ignore')))
+                    self._stdout.write("\t\tHistory:{0}\n".format(history))
                     if searchresponse:
                         self._stdout.write("\t\tSearch Hits:{0}\n".format(searchresponse))
                 if self._xmlout:
                     self._xmlout.write('<port number="{0}" status_code="{1}">\n'.format(port, resp.status_code))
                     if searchresponse:
                         self._xmlout.write('<search hits="{0}" />\n'.format(searchresponse))
+                    self._xmlout.write('<history>\n')
+                    self._xmlout.write(html.escape('{0}'.format(history)))
+                    self._xmlout.write('</history>\n')
                     self._xmlout.write('<text>\n')
                     self._xmlout.write(html.escape('{0}'.format(resp.text.encode('UTF-8', 'ignore'))))
                     self._xmlout.write('</text>\n')
@@ -145,6 +152,7 @@ class Output(object):
                     self._jsonout.write('{{"port":{0}'.format(port))
                     self._jsonout.write(',"status_code":"{0}"'.format(resp.status_code))
                     self._jsonout.write(',"text":{0}'.format(json.dumps(resp.text)))
+                    self._jsonout.write(',"history":{0}'.format(json.dumps(history)))
                     if searchresponse:
                         self._jsonout.write(',"searchhits":"{0}"'.format(searchresponse))
                     self._jsonout.write('}')
@@ -185,40 +193,26 @@ def httporhttps(address, port, request_session):
     '''
     figure out if the address is https or http
     '''
+    protocols = ('https://', 'http://')
     finalprotocol = None
     finalurl = None
     connrefused = False
-    try:
-        connected_web = "https://{0}:{1}".format(address, port)
-        with request_session.head(connected_web, timeout=TIMEOUTS) as response:
-            resp_dat = response
-            if resp_dat and resp_dat.status_code == 200:
-                if 'https' in resp_dat.url:
-                    finalprotocol = "https://"
-                    finalurl = resp_dat.url
-    except ConnectionRefusedError:
-        finalprotocol = None
-        connrefused = True
-    except requests.ConnectionError:
-        finalprotocol = None
-    except requests.ReadTimeout:
-        finalprotocol = None
-
-    if not finalprotocol and not connrefused:
-        #well https did not work need to try again
-        try:
-            connected_web = "http://{0}:{1}".format(address, port)
-            with request_session.head(connected_web, timeout=TIMEOUTS) as response:
-                resp_dat = response
-                if resp_dat and resp_dat.status_code == 200:
-                    finalprotocol = "http://"
-                    finalurl = resp_dat.url
-        except ConnectionRefusedError:
-            finalprotocol = None
-        except requests.ConnectionError:
-            finalprotocol = None
-        except requests.ReadTimeout:
-            finalprotocol = None
+    for protocol in protocols:
+        if not connrefused and not finalprotocol:
+            try:
+                connected_web = "{0}{1}:{2}".format(protocol, address, port)
+                with request_session.head(connected_web, timeout=TIMEOUTS, allow_redirects=True) as response:
+                    resp_dat = response
+                    if resp_dat and resp_dat.status_code == 200:
+                        finalprotocol = protocol
+                        finalurl = resp_dat.url
+            except ConnectionRefusedError:
+                finalprotocol = None
+                connrefused = True
+            except requests.ConnectionError:
+                finalprotocol = None
+            except requests.ReadTimeout:
+                finalprotocol = None
     return finalprotocol, finalurl
 
 def ipparse(values):
@@ -291,27 +285,21 @@ def callweb(protocol, address, port, request_session):
     call the web address and return the response
     '''
     resp_dat = None
-    connected_web = None
     try:
-        #TODO find a better way of checking between http and https
-        #try the request http
         connected_web = "{0}{1}:{2}".format(protocol, address, port)
-        with request_session.get(connected_web, timeout=TIMEOUTS) as response:
+        with request_session.get(connected_web, timeout=TIMEOUTS, allow_redirects=True) as response:
             resp_dat = response
     except ConnectionRefusedError:
         #connection was refused therefore probably no web server
         #might want to add some debugging messages here in the future.
-        connected_web = None
         resp_dat = None
     except requests.ConnectionError:
         #same thing here
-        connected_web = None
         resp_dat = None
     except requests.ReadTimeout:
         #same thing here
-        connected_web = None
         resp_dat = None
-    return (resp_dat, connected_web)
+    return resp_dat
 
 def zipfiles(parsedargs, outputlocation):
     '''
@@ -380,13 +368,14 @@ def scan(parsedargs):
                 for port in parsedargs.portlist:
                     print("\tworking port:" + str(port))
                     protocol, url = httporhttps(ipadd, port, sess)
-                    response = callweb(protocol, ipadd, port, sess)
-                    ipaddresses[1][port] = response[0]
-                    if parsedargs.screenshot and response[1]:
-                        #TODO need to send the proxy data to the program also.
-                        outputfilename = ipadd.replace(".", "_")
-                        outputfilename += '-' + str(port)
-                        getscreenshot(parsedargs, url, outputlocation, outputfilename)
+                    if protocol:
+                        response = callweb(protocol, ipadd, port, sess)
+                        ipaddresses[1][port] = response
+                        if parsedargs.screenshot and url:
+                            #TODO need to send the proxy data to the program also.
+                            outputfilename = ipadd.replace(".", "_")
+                            outputfilename += '-' + str(port)
+                            getscreenshot(parsedargs, url, outputlocation, outputfilename)
                 output.addresponsedata(ipaddresses)
     #time to zip everything up if we are zipping
     if parsedargs.outputzip:
