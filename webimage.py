@@ -373,7 +373,7 @@ def scan(parsedargs):
                         ipaddresses[1][port] = response
                         if parsedargs.screenshot and url:
                             #TODO need to send the proxy data to the program also.
-                            outputfilename = ipadd.replace(".", "_")
+                            outputfilename = str(ipadd).replace(".", "_")
                             outputfilename += '-' + str(port)
                             getscreenshot(parsedargs, url, outputlocation, outputfilename)
                 output.addresponsedata(ipaddresses)
