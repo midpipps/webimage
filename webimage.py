@@ -213,6 +213,8 @@ def httporhttps(address, port, request_session):
                 finalprotocol = None
             except requests.ReadTimeout:
                 finalprotocol = None
+            except requests.TooManyRedirects:
+                finalprotocol = None
     return finalprotocol, finalurl
 
 def ipparse(values):
